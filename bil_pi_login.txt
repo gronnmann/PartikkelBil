@@ -1,0 +1,3 @@
+hostname: partikkelbil.local
+username: partikkel
+pass: 123
