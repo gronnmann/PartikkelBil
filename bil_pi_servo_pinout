@@ -1,0 +1,18 @@
+four cables
+GPIO mode BCM
+
+orange
+    forward left
+    GPIO 17
+
+red
+    forward right
+    GPIO 27
+
+green
+    back left
+    GPIO 22
+
+brown
+    back right
+    GPIO 26

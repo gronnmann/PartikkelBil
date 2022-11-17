@@ -1,12 +1,24 @@
 import cv2
 import numpy as np
 import cv_display_pusher
-
+import os
+import RPi.GPIO as gpio
+import time
 
 video = cv2.VideoCapture(0)
-
 detection_offset = 100
 
+servo_forward_left = 17
+servo_forward_right = 27
+servo_back_left = 22
+servo_back_right = 26
+
+gpio.setmode(gpio.BCM)
+
+gpio.setup(servo_forward_left, gpio.OUT)
+gpio.setup(servo_forward_right, gpio.OUT)
+gpio.setup(servo_back_left, gpio.OUT)
+gpio.setup(servo_back_right, gpio.OUT)
 
 # Drive modes 0 -
 class DriveMode:
@@ -21,6 +33,12 @@ mode = DriveMode.STATIC
 while True:
 
     ret, img = video.read()
+
+    override = False
+    if os.path.exists("override.txt"):
+        with open("override.txt") as over_f:
+            override_line = over_f.readline().strip()
+            override = True if override_line == "True" else False
 
     dimensions = img.shape
     w, h = dimensions[1], dimensions[0]
@@ -55,12 +73,32 @@ while True:
 
     #show current status
     drive_status = "Standing still"
-    if mode == DriveMode.CENTER:
-        drive_status = "Forward"
-    elif mode == DriveMode.LEFT:
-        drive_status = "Going left"
-    elif mode == DriveMode.RIGHT:
-        drive_status = "Going right"
+    if override:
+        drive_status = "Override"
+    else:
+        if mode == DriveMode.CENTER:
+            drive_status = "Forward"
+            gpio.output(servo_forward_left, True)
+            gpio.output(servo_forward_right, True)
+            gpio.output(servo_back_left, True)
+            gpio.output(servo_back_right, True)
+        elif mode == DriveMode.LEFT:
+            drive_status = "Going left"
+            gpio.output(servo_forward_left, True)
+            gpio.output(servo_forward_right, False)
+            gpio.output(servo_back_left, True)
+            gpio.output(servo_back_right, False)
+        elif mode == DriveMode.RIGHT:
+            drive_status = "Going right"
+            gpio.output(servo_forward_left, False)
+            gpio.output(servo_forward_right, True)
+            gpio.output(servo_back_left, False)
+            gpio.output(servo_back_right, True)
+        elif mode == DriveMode.STATIC:
+            gpio.output(servo_forward_left, False)
+            gpio.output(servo_forward_right, False)
+            gpio.output(servo_back_left, False)
+            gpio.output(servo_back_right, False)
     cv2.putText(preview, drive_status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), preview_line_thickness)
 
 
@@ -83,12 +121,16 @@ while True:
 
         cv2.line(preview, (cx, 0), (cx, h), (255, 0, 0), preview_line_thickness)
 
-        if cx < boundaries[0]:
-            mode = DriveMode.RIGHT
-        elif cx > boundaries[1]:
-            mode = DriveMode.LEFT
+
+        if override:
+            mode = DriveMode.STATIC
         else:
-            mode = DriveMode.CENTER
+            if cx < boundaries[0]:
+                mode = DriveMode.RIGHT
+            elif cx > boundaries[1]:
+                mode = DriveMode.LEFT
+            else:
+                mode = DriveMode.CENTER
 
         rotation = rotated_rect[2]
 
@@ -101,8 +143,15 @@ while True:
         # cv2.line(preview, (0, cy), (w, cy), (255, 0, 0), preview_line_thickness)
 
 
+
     cv_display_pusher.push_stream(preview)
     cv2.imshow("Video preview", preview)
+
+    time.sleep(0.5)
+    gpio.output(servo_forward_left, False)
+    gpio.output(servo_forward_right, False)
+    gpio.output(servo_back_left, False)
+    gpio.output(servo_back_right, False)
 
     if (cv2.waitKey(1) & 0xFF == ord('q')):
         break
